@@ -1,0 +1,16 @@
+[tool.poetry]
+name = "idantic"
+version = "0.1.0"
+description = ""
+authors = ["sazonov-src <sazonov89vit@gmail.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.12"
+pydantic = "^2.6.3"
+mock-firestore = "^0.11.0"
+pytest = "^8.0.2"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
