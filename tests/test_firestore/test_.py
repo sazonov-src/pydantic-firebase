@@ -1,18 +1,21 @@
-from idantic.firestore import FireCollection, db, get_documents
+from itertools import batched
+from idantic.firestore import FireCollection, db, FireDocument
 from pprint import pprint
+from typing import get_args
 
-def test_(cart):
-    for doc in list(get_documents(cart)):
-        print(doc.save())
 
-    res = db.collections()
-    for collection in res:
-        for doc in collection.stream():
-            print(doc.id, doc.to_dict())
+def test_cart(cart):
+    pprint('set:')
+    doc = FireDocument(cart)
+    for doc in doc.all_documents:
+        doc.set()
 
-    cart_id = db.collection('carts').list_documents()[0].id
+def test_transaction(cart):
+    doc = FireDocument(cart)
+    for doc in doc.all_documents:
+        pprint(doc.document_data)
 
-    collection = FireCollection(type(cart))
-    print(collection.deserialize(cart_id))
+
+
 
     
