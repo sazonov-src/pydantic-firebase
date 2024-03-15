@@ -2,7 +2,6 @@ import pytest
 from idantic.firestore import IdField, fire
 from pydantic import BaseModel
 
-from typing import Any
 
 @fire("names")
 class Name(BaseModel):
@@ -47,29 +46,29 @@ class Cart(BaseModel):
 
 @pytest.fixture
 def sale():
-    return Sale(name='sale1')
+    return Sale(id='1', name='sale1')
 
 @pytest.fixture
 def item1(sale):
-    return Item(name='item1', sale=sale)
+    return Item(id='1', name='item1', sale=sale)
 
 @pytest.fixture
 def item2(sale):
-    return Item(name='item2', sale=sale)
+    return Item(id='2', name='item2', sale=sale)
 
 @pytest.fixture
 def city():
-    return City(name='Kyiv')
+    return City(id='1', name='Kyiv')
 
 @pytest.fixture
 def name():
-    return Name(first='Vasya', last='Pupkin')
+    return Name(id='1', first='Vasya', last='Pupkin')
 
 @pytest.fixture
 def user(city, name):
-    return User(name=name, email='a@a.ua', city=city)
+    return User(id='2', name=name, email='a@a.ua', city=city)
 
 @pytest.fixture
 def cart(user, item1, item2):
-    return Cart(user=user, items=[item1, item2])
+    return Cart(id='1', user=user, items=[item1, item2])
 

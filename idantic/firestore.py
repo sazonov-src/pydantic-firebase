@@ -1,6 +1,6 @@
 from typing import get_args
 from pydantic import BaseModel, Field
-from mockfirestore import MockFirestore, document
+from mockfirestore import MockFirestore
 import uuid
 
 from icecream import ic
@@ -14,73 +14,75 @@ except ImportError:
 
 def fire(firestore_ref=None, subcollections_fields=None):
     def decorator(cls):
-        res = type(f"Fire{cls.__name__}", (cls,), {})
+        res = type(f"{cls.__name__}", (cls,), {})
         setattr(res, "firestore_ref", firestore_ref)
         setattr(res, "subcollections_fields", subcollections_fields or [])
         setattr(res, 'fire_collection', FireCollection(res))
         return res
     return decorator
 
-
 IdField = Field(default_factory=lambda: uuid.uuid4().hex, exclude=True)
 
 
-class FireDocumentReference:
-    def __init__(self, model):
-        self.model = model
-
-    @classmethod
-    def _ref_str(cls, model):
-        return model.firestore_ref or model.__name__.lower() + 's'
-
-    @property
-    def document(self):
-        return db.collection(self._ref_str(self.model)).document(self.model.id)
-
-
-class FireDocumentReferenceSubcollection(FireDocumentReference):
-    def __init__(self, model, parent_model):
-        super().__init__(model)
-        self.parent_model = parent_model
-
-    @property
-    def document(self):
-        return super().document.collection(
-                self._ref_str(self.parent_model)).document(self.model.id)
-
-
-
 class FireCollection:
-    def __init__(self, type_model):
-        self.type_model = type_model
-        self.collection_reference = FireDocumentReference(self.type_model)
+    def __init__(self, model_type):
+        self.model_type = model_type
+        self.collection_ref = FireReference(model_type.firestore_ref)
 
-    def is_model_have_id(self, model):
-        for key, value in model.model_fields.items():
-            if key == 'id':
-                return True
-        return False
+    def _get_submodels_types(self):
+        return {key: value.annotation 
+                for key, value in self.model_type.model_fields.items() 
+                if isinstance(value.annotation, type(BaseModel))}
+
+    def _get_subcollectons_types(self):
+        return {key: get_args(self.model_type.model_fields[key].annotation) for key in self.model_type.subcollections_fields}
+
+    def _get_obj(self, document_str_ref):
+        obj_ref = FireReference(document_str_ref)
+        obj_dict = obj_ref.reference.get().to_dict()
+        for key, value in self._get_submodels_types().items():
+            obj_dict[key] = self.__class__(value)._get_obj(obj_dict[key])
+        for key, types in self._get_subcollectons_types().items():
+            for type_ in types:
+                subcollection_ref = FireReference(document_str_ref + '/' + type_.firestore_ref)
+                obj_dict[key] = [
+                        self.__class__(type_)._get_obj('/'.join(doc._path))
+                        for doc in subcollection_ref.reference.list_documents()]
+        obj_dict['id'] = obj_ref.id
+        return obj_dict
+
+    def get_obj(self, document_str_ref):
+        return self.model_type(**self._get_obj(document_str_ref))
+
+
+
+class FireReference:
+    def __init__(self, ref_str):
+        self._path = ref_str.split('/')
 
     @property
-    def model_schema(self):
-        return {key: value.annotation for key, value 
-                in self.type_model.model_fields.items() 
-                if isinstance(value.annotation, type(BaseModel))
-                and self.is_model_have_id(value.annotation)}
+    def id(self):
+        return self._path[-1]
 
-    def _deserialize(self, id):
-        obj = self.collection_reference.collection.document(id).get().to_dict()
-        obj['id'] = id
-        for key, value in self.model_schema.items():
-            obj[key] = self.__class__(value)._deserialize(obj[key])
-        return obj
+    @property
+    def reference(self):
+        return self._get_reference(self._path)
 
-    def _deserialize_subcollections(self, id):
-        for key in self.type_model.subcollections_fields:
-            pass
+    @property
+    def reference_doc(self):
+        path = self._path if len(self._path) % 2  else self._path[:-1]
+        return self._get_reference(path)
 
-    def deserialize(self, id):
-        return self.type_model(**self._deserialize(id))
+    @staticmethod
+    def _get_reference(_path):
+        ref_obj = db
+        ref = iter(_path)
+        try:
+            while True:
+                ref_obj = ref_obj.collection(next(ref))
+                ref_obj = ref_obj.document(next(ref))
+        except StopIteration:
+            return ref_obj
 
 
 class FireDocument:
@@ -88,21 +90,18 @@ class FireDocument:
         self.model = model
         self._str_reference = model.firestore_ref + '/' + model.id
 
+    @property
+    def reference(self):
+        return FireReference(self._str_reference).reference
+
     def __repr__(self):
         return f'FireDocument({self._str_reference})'
 
     def __hash__(self):
-        return hash(self._str_reference)
+        return hash((self._str_reference, ))
 
-    @property
-    def reference(self):
-        ref_obj = db
-        ref = (_ for _ in self._str_reference.split('/'))
-        try:
-            while True:
-                ref_obj = ref_obj.collection(next(ref)).document(next(ref))
-        except StopIteration:
-            return ref_obj
+    def __eq__(self, other):
+        return self._str_reference == other._str_reference
         
     @property
     def document_data(self):
@@ -127,7 +126,7 @@ class FireDocument:
 
     @property
     def subcollections_documents(self):
-        return self._get_subcollections_absolute_ref()
+        yield from self._get_subcollections_absolute_ref()
 
     @property
     def child_documents(self):
@@ -138,12 +137,10 @@ class FireDocument:
 
     @property
     def all_documents(self):
-        for doc in self.child_documents:
-            yield doc
+        yield from self.child_documents
         for subdoc in self.subcollections_documents:
             yield subdoc
-            for doc in subdoc.child_documents:
-                yield doc
+            yield from subdoc.child_documents
         yield self
 
     def set(self):
