@@ -1,15 +1,10 @@
 from typing import get_args
+from google.cloud.firestore import CollectionReference, DocumentReference
 from pydantic import BaseModel, Field
-from mockfirestore import MockFirestore
 import uuid
 
-from icecream import ic
+from firesetup import db
 
-
-try:
-    from firesetup import db
-except ImportError:
-    db = MockFirestore()
 
 
 def fire(firestore_ref=None, subcollections_fields=None):
@@ -27,7 +22,7 @@ IdField = Field(default_factory=lambda: uuid.uuid4().hex, exclude=True)
 class FireCollection:
     def __init__(self, model_type):
         self.model_type = model_type
-        self.collection_ref = FireReference(model_type.firestore_ref)
+        self.collection_ref = get_collection_reference(model_type.firestore_ref)
 
     def _get_submodels_types(self):
         return {key: value.annotation 
@@ -38,17 +33,18 @@ class FireCollection:
         return {key: get_args(self.model_type.model_fields[key].annotation) for key in self.model_type.subcollections_fields}
 
     def _get_obj(self, document_str_ref):
-        obj_ref = FireReference(document_str_ref)
-        obj_dict = obj_ref.reference.get().to_dict()
+        obj_dict = get_document_reference(document_str_ref).get().to_dict()
+        if not obj_dict:
+            raise ValueError
         for key, value in self._get_submodels_types().items():
             obj_dict[key] = self.__class__(value)._get_obj(obj_dict[key])
         for key, types in self._get_subcollectons_types().items():
             for type_ in types:
-                subcollection_ref = FireReference(document_str_ref + '/' + type_.firestore_ref)
+                subcollection_ref = get_collection_reference(document_str_ref + '/' + type_.firestore_ref)
                 obj_dict[key] = [
                         self.__class__(type_)._get_obj('/'.join(doc._path))
-                        for doc in subcollection_ref.reference.list_documents()]
-        obj_dict['id'] = obj_ref.id
+                        for doc in subcollection_ref.list_documents()]
+        obj_dict['id'] = document_str_ref.split('/')[-1]
         return obj_dict
 
     def get_obj(self, document_str_ref):
@@ -56,33 +52,28 @@ class FireCollection:
 
 
 
-class FireReference:
-    def __init__(self, ref_str):
-        self._path = ref_str.split('/')
 
-    @property
-    def id(self):
-        return self._path[-1]
+def _get_reference(ref_str):
+    ref = iter(ref_str.split('/'))
+    ref_obj = db
+    try:
+        while True:
+            ref_obj = ref_obj.collection(next(ref))
+            ref_obj = ref_obj.document(next(ref))
+    except StopIteration:
+        return ref_obj
 
-    @property
-    def reference(self):
-        return self._get_reference(self._path)
+def get_document_reference(ref_str) -> DocumentReference:
+    ref = _get_reference(ref_str)
+    if isinstance(ref, DocumentReference):
+        return ref
+    raise ValueError
 
-    @property
-    def reference_doc(self):
-        path = self._path if len(self._path) % 2  else self._path[:-1]
-        return self._get_reference(path)
-
-    @staticmethod
-    def _get_reference(_path):
-        ref_obj = db
-        ref = iter(_path)
-        try:
-            while True:
-                ref_obj = ref_obj.collection(next(ref))
-                ref_obj = ref_obj.document(next(ref))
-        except StopIteration:
-            return ref_obj
+def get_collection_reference(ref_str) -> CollectionReference:
+    ref = _get_reference(ref_str)
+    if isinstance(ref, CollectionReference):
+        return ref
+    raise ValueError
 
 
 class FireDocument:
@@ -92,7 +83,7 @@ class FireDocument:
 
     @property
     def reference(self):
-        return FireReference(self._str_reference).reference
+        return get_document_reference(self._str_reference)
 
     def __repr__(self):
         return f'FireDocument({self._str_reference})'
