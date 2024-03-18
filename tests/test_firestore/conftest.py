@@ -1,74 +1,66 @@
-import pytest
-from idantic.firestore import IdField, fire
+from idantic.firestore import IdField, fire, get_document_reference, db
 from pydantic import BaseModel
+from idantic import firestore
+from mockfirestore import MockFirestore
+import pytest
 
+class Profile(BaseModel):
+    name: str
+    login: str
 
-@fire("names")
-class Name(BaseModel):
+@fire(firestore_ref='comments')
+class Comment(BaseModel):
     id: str = IdField
-    first: str
-    last: str
+    text: str
 
-@fire("cities")
-class City(BaseModel):
+@fire(firestore_ref='tags')
+class Tag(BaseModel):
     id: str = IdField
     name: str
 
-@fire("users")
+@fire(firestore_ref='post_data')
+class PostData(BaseModel):
+    id: str = IdField
+    title: str
+    text: str
+
+@fire(firestore_ref='posts', subcollections_fields=['comments', 'tags'])
+class Post(BaseModel):
+    id: str = IdField
+    title: str
+    comments: list[Comment]
+    tags: list[Tag]
+    data: PostData
+
+@fire(firestore_ref='users', subcollections_fields=['posts'])
 class User(BaseModel):
     id: str = IdField
-    name: Name
-    email: str
-    city: City
-
-
-@fire("sales")
-class Sale(BaseModel):
-    id: str = IdField
     name: str
+    posts: list[Post]
+    profile: Profile
 
-@fire("promos")
-class Promo(BaseModel):
-    id: str = IdField
-    name: str
-
-@fire("items")
-class Item(BaseModel):
-    id: str = IdField
-    name: str
-    sale: Sale
-
-@fire("carts", subcollections_fields=('items',))
-class Cart(BaseModel):
-    id: str = IdField
-    user: User 
-    items: list[Item]
 
 @pytest.fixture
-def sale():
-    return Sale(id='1', name='sale1')
+def post_data_model():
+    return PostData(id='5', title='title', text='some long text')
 
 @pytest.fixture
-def item1(sale):
-    return Item(id='1', name='item1', sale=sale)
+def profile_model():
+    return Profile(name='name', login='login')
 
 @pytest.fixture
-def item2(sale):
-    return Item(id='2', name='item2', sale=sale)
+def comment_model():
+    return Comment(id='1', text='text')
 
 @pytest.fixture
-def city():
-    return City(id='1', name='Kyiv')
+def tag_model():
+    return Tag(id='1', name='name')
 
 @pytest.fixture
-def name():
-    return Name(id='1', first='Vasya', last='Pupkin')
+def post_model(comment_model, tag_model, post_data_model):
+    return Post(id='1', title='title', comments=[comment_model], tags=[tag_model], data=post_data_model)
 
 @pytest.fixture
-def user(city, name):
-    return User(id='2', name=name, email='a@a.ua', city=city)
-
-@pytest.fixture
-def cart(user, item1, item2):
-    return Cart(id='1', user=user, items=[item1, item2])
+def user_model(post_model, profile_model):
+    return User(id='1', name='name', posts=[post_model], profile=profile_model)
 
