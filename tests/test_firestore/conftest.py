@@ -1,7 +1,8 @@
 import pytest
 from pydantic import BaseModel
 
-from idantic.firestore import IdField, fire
+from firesetup import db
+from firestore.utils import IdField, firestore_collection
 
 
 class Profile(BaseModel):
@@ -9,26 +10,26 @@ class Profile(BaseModel):
     login: str
 
 
-@fire(firestore_ref="comments")
+@firestore_collection(ref="comments")
 class Comment(BaseModel):
     id: str = IdField
     text: str
 
 
-@fire(firestore_ref="tags")
+@firestore_collection(ref="tags")
 class Tag(BaseModel):
     id: str = IdField
     name: str
 
 
-@fire(firestore_ref="post_data")
+@firestore_collection(ref="post_data")
 class PostData(BaseModel):
     id: str = IdField
     title: str
     text: str
 
 
-@fire(firestore_ref="posts", subcollections_fields=["comments", "tags"])
+@firestore_collection(ref="posts", subcollections_fields=["comments", "tags"])
 class Post(BaseModel):
     id: str = IdField
     title: str
@@ -37,7 +38,7 @@ class Post(BaseModel):
     data: PostData
 
 
-@fire(firestore_ref="users", subcollections_fields=["posts"])
+@firestore_collection(ref="users", subcollections_fields=["posts"])
 class User(BaseModel):
     id: str = IdField
     name: str
@@ -46,41 +47,45 @@ class User(BaseModel):
 
 
 @pytest.fixture
-def post_data_model():
-    return PostData(id="5", title="title", text="some long text")
-
-
-@pytest.fixture
-def profile_model():
-    return Profile(name="name", login="login")
-
-
-@pytest.fixture
-def comment_model():
-    return Comment(id="1", text="text")
-
-
-@pytest.fixture
-def tag_model2():
-    return Tag(id="2", name="name2")
-
-
-@pytest.fixture
-def tag_model():
-    return Tag(id="1", name="name")
-
-
-@pytest.fixture
-def post_model(comment_model, tag_model, post_data_model, tag_model2):
-    return Post(
+def user_model():
+    post_model = Post(
         id="1",
-        title="title",
-        comments=[comment_model],
-        tags=[tag_model, tag_model2],
-        data=post_data_model,
+        title="Post Title",
+        comments=[Comment(id="1", text="Comment Text")],
+        tags=[Tag(id="1", name="Tag Name")],
+        data=PostData(id="1", title="Post Data Title", text="Post Data Text"),
     )
+    profile_model = Profile(name="User Name", login="user_login")
+    return User(id="1", name="User Name", posts=[post_model], profile=profile_model)
 
 
 @pytest.fixture
-def user_model(post_model, profile_model):
-    return User(id="1", name="name", posts=[post_model], profile=profile_model)
+def empty_db():
+    db.reset()
+    return db
+
+
+@pytest.fixture
+def user_model_db(empty_db):
+    empty_db.collection("users").document("1").set(
+        {"name": "User Name", "profile": {"name": "User Name", "login": "user_login"}}
+    )
+    empty_db.collection("users").document("1").collection("posts").document(
+        "1"
+    ).collection("tags").document("1").set({"name": "Tag Name"})
+    empty_db.collection("users").document("1").collection("posts").document(
+        "1"
+    ).collection("comments").document("1").set({"text": "Comment Text"})
+    empty_db.collection("users").document("1").collection("posts").document("1").set(
+        {"title": "Post Title", "data": "post_data/1"}
+    )
+    empty_db.collection("post_data").document("1").set(
+        {"title": "Post Data Title", "text": "Post Data Text"}
+    )
+    return empty_db
+
+
+@pytest.fixture
+def user_model_db_without_user_profile(user_model_db):
+    user_model_db.collection("users").document("1").update({"profile": None})
+    return user_model_db

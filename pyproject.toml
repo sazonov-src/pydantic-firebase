@@ -1,7 +1,7 @@
 [tool.poetry]
-name = "idantic"
+name = "pydantic-firebase"
 version = "0.1.0"
-description = ""
+description = "Pydantic models for Google Cloud Firestore"
 authors = ["sazonov-src <sazonov89vit@gmail.com>"]
 readme = "README.md"
 
