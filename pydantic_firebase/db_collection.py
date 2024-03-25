@@ -3,8 +3,8 @@ from typing import get_args
 from pydantic import BaseModel
 
 from firesetup import db
-from firestore.db_document import FireDBDocument
-from firestore.db_reference import (
+from pydantic_firebase.db_document import FireDBDocument
+from pydantic_firebase.db_reference import (
     get_collection_reference,
     get_document_reference,
 )

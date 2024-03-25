@@ -2,7 +2,7 @@ import uuid
 
 from pydantic import Field
 
-from firestore.db_collection import FireDBCollection
+from pydantic_firebase.db_collection import FireDBCollection
 
 
 def firestore_collection(ref, subcollections_fields=None):

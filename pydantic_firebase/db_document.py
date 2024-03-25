@@ -1,4 +1,4 @@
-from firestore.db_reference import get_document_reference
+from pydantic_firebase.db_reference import get_document_reference
 
 
 from pydantic import BaseModel

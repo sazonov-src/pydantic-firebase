@@ -4,6 +4,10 @@ version = "0.1.0"
 description = "Pydantic models for Google Cloud Firestore"
 authors = ["sazonov-src <sazonov89vit@gmail.com>"]
 readme = "README.md"
+packages = [
+    {include = "pydantic_firebase"}]
+include = [
+    { path = "tests", format = "sdist" }]
 
 [tool.poetry.dependencies]
 python = "^3.12"

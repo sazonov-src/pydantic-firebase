@@ -1,11 +1,9 @@
 import pytest
-from pydantic import ValidationError
-from firestore.db_document import FireDBDocument
-
-from firestore.db_document import (
+from pydantic_firebase.db_document import (
+    FireDBDocument,
     get_all_documents,
 )
-from tests.test_firestore.conftest import User
+from pydantic import ValidationError
 
 
 def test_set_user_to_db(user_model):
@@ -15,17 +13,18 @@ def test_set_user_to_db(user_model):
         doc.set()
 
 
-def test_get_user_from_db(user_model_db):
-    fire_user = User.fire_collection.get_document("1")
-    assert isinstance(fire_user.model, User)
-    print(fire_user.model)
+def test_get_user_from_db(user_model_db, user_type):
+    fire_user = user_type.fire_collection.get_document("1")
+    assert isinstance(fire_user.model, user_type)
 
 
-def test_get_user_from_empty_db(empty_db):
+def test_get_user_from_empty_db(empty_db, user_type):
     with pytest.raises(ValidationError):
-        User.fire_collection.get_document("1")
+        user_type.fire_collection.get_document("1")
 
 
-def test_get_user_from_db_without_profile(user_model_db_without_user_profile):
+def test_get_user_from_db_without_profile(
+    user_model_db_without_user_profile, user_type
+):
     with pytest.raises(ValidationError):
-        User.fire_collection.get_document("1")
+        user_type.fire_collection.get_document("1")

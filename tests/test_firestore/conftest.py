@@ -2,7 +2,7 @@ import pytest
 from pydantic import BaseModel
 
 from firesetup import db
-from firestore.utils import IdField, firestore_collection
+from pydantic_firebase.utils import IdField, firestore_collection
 
 
 class Profile(BaseModel):
@@ -89,3 +89,8 @@ def user_model_db(empty_db):
 def user_model_db_without_user_profile(user_model_db):
     user_model_db.collection("users").document("1").update({"profile": None})
     return user_model_db
+
+
+@pytest.fixture
+def user_type():
+    return User
